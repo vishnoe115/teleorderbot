@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Contoh Produk",
+    "description": "Produk contoh. Edit/hapus setelah bot berjalan.",
+    "price": 5000,
+    "stock": 10,
+    "delivery_text": "Ini adalah isi produk contoh yang otomatis dikirim setelah pembayaran dikonfirmasi.",
+    "active": true
+  }
+]
