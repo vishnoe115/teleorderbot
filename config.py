@@ -26,6 +26,8 @@ class Settings:
     admin_user_id: int
 
     payment_channel_id: str
+    required_channel_url: str
+    required_channel_name: str
     owner_mention_label: str
     owner_mention_username: str
 
@@ -49,6 +51,8 @@ def load_settings() -> Settings:
         admin_user_id=_int("ADMIN_USER_ID", 0),
 
         payment_channel_id=os.getenv("PAYMENT_CHANNEL_ID", "").strip(),
+        required_channel_url=os.getenv("REQUIRED_CHANNEL_URL", "").strip(),
+        required_channel_name=os.getenv("REQUIRED_CHANNEL_NAME", "Channel Transaksi").strip() or "Channel Transaksi",
         owner_mention_label=os.getenv("OWNER_MENTION_LABEL", "Owner").strip() or "Owner",
         owner_mention_username=os.getenv("OWNER_MENTION_USERNAME", "").strip().lstrip("@"),
 
@@ -75,6 +79,12 @@ def validate_settings(s: Settings) -> None:
         raise RuntimeError("BOT_TOKEN is required")
     if s.admin_user_id <= 0:
         raise RuntimeError("ADMIN_USER_ID must be a valid Telegram numeric user ID")
+    if not s.payment_channel_id:
+        raise RuntimeError("PAYMENT_CHANNEL_ID is required for payment tracking and membership gate")
+    if not s.required_channel_url:
+        raise RuntimeError("REQUIRED_CHANNEL_URL is required so users can join the tracking channel")
+    if not s.required_channel_url.startswith(("https://t.me/", "http://t.me/")):
+        raise RuntimeError("REQUIRED_CHANNEL_URL must be a Telegram channel/invite URL")
     if not s.dana_business_name:
         raise RuntimeError("DANA_BUSINESS_NAME is required")
     if not (100 <= s.unique_code_min <= 400):

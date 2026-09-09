@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 
 import db
 from handlers.common import admin_keyboard, is_admin, order_text
-from services.channel_notifications import post_verified_payment
+from services.channel_notifications import post_payment_verified
 from services.orders import rupiah
 
 log = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Notify channel first, but do not block delivery if channel fails.
     try:
-        await post_verified_payment(
+        await post_payment_verified(
             context.bot,
             order,
             source="QRIS DANA Bisnis - confirmed by admin",

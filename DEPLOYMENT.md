@@ -6,8 +6,8 @@ Command inti setelah Docker Engine tersedia:
 
 ```bash
 cd /opt
-git clone https://github.com/USERNAME/REPOSITORY.git autoordertele
-cd autoordertele
+git clone https://github.com/USERNAME/REPOSITORY.git teleorderbot
+cd teleorderbot
 
 cp config-sample.env config.env
 nano config.env
@@ -17,14 +17,14 @@ mkdir -p data logs
 
 sudo docker compose up -d --build
 sudo docker compose ps
-sudo docker compose logs --tail=100 autoordertele
+sudo docker compose logs --tail=100 teleorderbot
 curl http://127.0.0.1:8080/health
 ```
 
 Update:
 
 ```bash
-cd /opt/autoordertele
+cd /opt/teleorderbot
 cp data/orders.db data/orders.db.backup
 git pull --ff-only
 sudo docker compose up -d --build

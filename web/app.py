@@ -8,7 +8,7 @@ import db
 
 def create_web_app() -> FastAPI:
     app = FastAPI(
-        title="AutoOrderTele",
+        title="TeleOrderBot",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -21,7 +21,7 @@ def create_web_app() -> FastAPI:
             {
                 "ok": db_ok,
                 "database": "ok" if db_ok else "error",
-                "payment": "DANA_BUSINESS_QRIS",
+                "payment": "MANUAL_DANA_BUSINESS_QRIS",
             },
             status_code=200 if db_ok else 503,
         )

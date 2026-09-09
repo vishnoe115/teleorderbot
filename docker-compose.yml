@@ -1,18 +1,18 @@
 services:
-  autoordertele:
+  teleorderbot:
     build:
       context: .
       dockerfile: Dockerfile
 
-    container_name: autoordertele
+    container_name: teleorderbot
     restart: unless-stopped
     init: true
 
     env_file:
       - config.env
 
-    # Bind only to localhost. Put Nginx/Caddy/Cloudflare Tunnel in front
-    # for public HTTPS webhook access.
+    # Local health endpoint only. Telegram updates are received with long polling.
+    # No automatic QRIS/payment webhook is used.
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
 

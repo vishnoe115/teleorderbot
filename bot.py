@@ -104,6 +104,7 @@ def build_telegram_app() -> Application:
     app.add_handler(purchase)
 
     app.add_handler(CallbackQueryHandler(user_handlers.catalog, pattern=r"^catalog$"))
+    app.add_handler(CallbackQueryHandler(user_handlers.check_membership, pattern=r"^check_membership$"))
     app.add_handler(CallbackQueryHandler(user_handlers.dana_paid, pattern=r"^dana_paid:"))
     app.add_handler(CallbackQueryHandler(admin_handlers.mark_paid, pattern=r"^a:paid:"))
     app.add_handler(CallbackQueryHandler(admin_handlers.cancel, pattern=r"^a:cancel:"))
@@ -144,7 +145,7 @@ async def run() -> None:
     )
 
     log.info(
-        "Bot started | HTTP=%s:%s | payment=DANA_BUSINESS_QRIS",
+        "Bot started | HTTP=%s:%s | payment=MANUAL_DANA_BUSINESS_QRIS | membership_gate=enabled",
         settings.host,
         settings.port,
     )

@@ -9,6 +9,7 @@ import db
 from config import settings
 from handlers.common import admin_keyboard, order_text
 from services.channel_notifications import post_payment_claim, post_payment_proof
+from services.membership import ensure_required_channel_member, is_required_channel_member, membership_keyboard
 from services.orders import new_order_id, rupiah, random_unique_payment_code
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ async def notify_admin(context_or_app, order_id: str, extra: str = "") -> None:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await ensure_required_channel_member(update, context):
+        return
     db.upsert_user(update.effective_user)
     await update.effective_message.reply_text(
         "Selamat datang! 👋",
@@ -44,6 +47,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await ensure_required_channel_member(update, context):
+        return
     query = update.callback_query
     await query.answer()
 
@@ -70,6 +75,9 @@ async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not await ensure_required_channel_member(update, context):
+        context.user_data.clear()
+        return ConversationHandler.END
     query = update.callback_query
     await query.answer()
 
@@ -94,6 +102,9 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def receive_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not await ensure_required_channel_member(update, context):
+        context.user_data.clear()
+        return ConversationHandler.END
     item = db.product(context.user_data.get("product_id", 0))
     if not item or not item["active"] or int(item["stock"]) <= 0:
         await update.effective_message.reply_text("Produk sudah tidak tersedia.")
@@ -128,6 +139,9 @@ async def receive_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def choose_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not await ensure_required_channel_member(update, context):
+        context.user_data.clear()
+        return ConversationHandler.END
     query = update.callback_query
     await query.answer()
 
@@ -229,6 +243,8 @@ async def choose_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def dana_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await ensure_required_channel_member(update, context):
+        return
     query = update.callback_query
     await query.answer()
 
@@ -253,7 +269,29 @@ async def dana_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await post_payment_claim(context.bot, order)
 
 
+async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    if not await is_required_channel_member(context.bot, query.from_user.id):
+        await query.message.reply_text(
+            "❌ Keanggotaan belum terdeteksi. Pastikan Anda sudah bergabung lalu coba lagi.",
+            reply_markup=membership_keyboard(),
+        )
+        return
+
+    db.upsert_user(query.from_user)
+    await query.message.reply_text(
+        "✅ Keanggotaan berhasil diverifikasi. Sekarang Anda dapat menggunakan bot.",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🛍️ Lihat Produk", callback_data="catalog")]]
+        ),
+    )
+
+
 async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await ensure_required_channel_member(update, context):
+        return
     if not update.effective_message.photo:
         return
 
