@@ -1,32 +1,42 @@
 services:
+  mongodb:
+    image: mongo:8.0
+    container_name: teleorderbot-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--bind_ip_all"]
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   teleorderbot:
     build:
       context: .
       dockerfile: Dockerfile
-
     container_name: teleorderbot
     restart: unless-stopped
     init: true
-
     env_file:
       - config.env
-
-    # Local health endpoint only. Telegram updates are received with long polling.
-    # No automatic QRIS/payment webhook is used.
+    depends_on:
+      mongodb:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
-
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-
     environment:
       HOST: "0.0.0.0"
       PORT: "8080"
-
+      MONGODB_URI: "mongodb://mongodb:27017"
+      MONGODB_DATABASE: "${MONGODB_DATABASE:-teleorderbot}"
     security_opt:
       - no-new-privileges:true
-
     healthcheck:
       test:
         [
@@ -39,3 +49,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+volumes:
+  mongodb_data:
+    name: teleorderbot_mongodb_data

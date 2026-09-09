@@ -37,7 +37,9 @@ class Settings:
     unique_code_min: int
     unique_code_max: int
 
-    db_path: Path
+    mongodb_uri: str
+    mongodb_database: str
+
     log_file: Path
     log_level: str
 
@@ -65,7 +67,9 @@ def load_settings() -> Settings:
         unique_code_min=_int("UNIQUE_CODE_MIN", 100),
         unique_code_max=_int("UNIQUE_CODE_MAX", 400),
 
-        db_path=Path(os.getenv("DB_PATH", "./data/orders.db")),
+        mongodb_uri=os.getenv("MONGODB_URI", "mongodb://mongodb:27017").strip(),
+        mongodb_database=os.getenv("MONGODB_DATABASE", "teleorderbot").strip() or "teleorderbot",
+
         log_file=Path(os.getenv("LOG_FILE", "./logs/bot.log")),
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
 
@@ -85,6 +89,10 @@ def validate_settings(s: Settings) -> None:
         raise RuntimeError("REQUIRED_CHANNEL_URL is required so users can join the tracking channel")
     if not s.required_channel_url.startswith(("https://t.me/", "http://t.me/")):
         raise RuntimeError("REQUIRED_CHANNEL_URL must be a Telegram channel/invite URL")
+    if not s.mongodb_uri:
+        raise RuntimeError("MONGODB_URI is required")
+    if not s.mongodb_database:
+        raise RuntimeError("MONGODB_DATABASE is required")
     if not s.dana_business_name:
         raise RuntimeError("DANA_BUSINESS_NAME is required")
     if not (100 <= s.unique_code_min <= 400):

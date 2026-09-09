@@ -25,6 +25,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             [
                 [InlineKeyboardButton("🧾 Order Terbaru", callback_data="a:orders")],
                 [InlineKeyboardButton("📦 Produk & Stok", callback_data="a:products")],
+                [InlineKeyboardButton("📋 Semua Produk", callback_data="a:all_products")],
             ]
         ),
     )
@@ -49,22 +50,132 @@ async def orders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
+async def _send_all_products(message) -> None:
+    rows = db.products(active_only=False)
+    if not rows:
+        await message.reply_text(
+            "Produk kosong.\n\nTambah produk: /admin_add_product"
+        )
+        return
+
+    lines = ["📋 <b>Semua Produk</b>", ""]
+    for item in rows:
+        status = "AKTIF" if item.get("active", True) else "NONAKTIF"
+        lines.append(
+            f"#{item['id']} <b>{item['name']}</b>\n"
+            f"Harga: {rupiah(item['price'])}\n"
+            f"Stok: {item['stock']}\n"
+            f"Status: {status}"
+        )
+        lines.append("")
+
+    lines.extend(
+        [
+            "Tambah: /admin_add_product",
+            "Ubah stok: /admin_set_stock PRODUCT_ID JUMLAH",
+            "Hapus: /admin_delete_product PRODUCT_ID",
+        ]
+    )
+    text = "\n".join(lines)
+    while text:
+        if len(text) <= 3900:
+            chunk, text = text, ""
+        else:
+            cut = text.rfind("\n\n", 0, 3900)
+            if cut < 1:
+                cut = 3900
+            chunk, text = text[:cut], text[cut:].lstrip()
+        await message.reply_text(chunk, parse_mode="HTML")
+
+
 async def products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
         return
+    await _send_all_products(query.message)
 
-    rows = db.products(active_only=False)
-    text = "\n".join(
-        f"#{item['id']} {item['name']} — {rupiah(item['price'])} — stok {item['stock']}"
-        for item in rows
+
+async def all_products_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        return
+    await _send_all_products(update.effective_message)
+
+
+async def delete_product_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        return
+
+    if len(context.args) != 1:
+        await update.effective_message.reply_text(
+            "Format: /admin_delete_product PRODUCT_ID\n"
+            "Contoh: /admin_delete_product 3"
+        )
+        return
+
+    try:
+        product_id = int(context.args[0])
+        if product_id <= 0:
+            raise ValueError
+    except ValueError:
+        await update.effective_message.reply_text("Product ID tidak valid.")
+        return
+
+    item = db.product(product_id)
+    if not item:
+        await update.effective_message.reply_text("Produk tidak ditemukan.")
+        return
+
+    if db.product_has_pending_orders(product_id):
+        await update.effective_message.reply_text(
+            "❌ Produk belum dapat dihapus karena masih memiliki order PENDING. "
+            "Konfirmasi atau batalkan order tersebut terlebih dahulu."
+        )
+        return
+
+    await update.effective_message.reply_text(
+        f"⚠️ Hapus produk #{product_id} <b>{item['name']}</b>?\n"
+        "Produk akan dihapus permanen dari katalog MongoDB. Riwayat order lama tetap tersimpan.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [[
+                InlineKeyboardButton("🗑 Ya, Hapus", callback_data=f"a:delete_product:{product_id}"),
+                InlineKeyboardButton("Batal", callback_data="a:delete_product_cancel"),
+            ]]
+        ),
     )
-    await query.message.reply_text(
-        (text or "Produk kosong.")
-        + "\n\nTambah produk: /admin_add_product\n"
-        + "Ubah stok: /admin_set_stock PRODUCT_ID JUMLAH"
-    )
+
+
+async def delete_product_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    product_id = int(query.data.rsplit(":", 1)[1])
+    if db.product_has_pending_orders(product_id):
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            "❌ Produk tidak dihapus karena sekarang memiliki order PENDING. "
+            "Selesaikan/batalkan order tersebut terlebih dahulu."
+        )
+        return
+
+    deleted = db.delete_product(product_id)
+    await query.edit_message_reply_markup(reply_markup=None)
+    if deleted:
+        await query.message.reply_text(f"✅ Produk #{product_id} berhasil dihapus dari MongoDB.")
+    else:
+        await query.message.reply_text("Produk tidak ditemukan atau sudah dihapus.")
+
+
+async def delete_product_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("Dibatalkan")
+    if not is_admin(query.from_user.id):
+        return
+    await query.edit_message_reply_markup(reply_markup=None)
+    await query.message.reply_text("Penghapusan produk dibatalkan.")
 
 
 async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

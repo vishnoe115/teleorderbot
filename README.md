@@ -28,6 +28,8 @@ Fitur berikut hanya dapat diakses oleh Telegram user ID yang sama dengan `ADMIN_
 | `/admin` | Membuka Admin Panel. |
 | Order terbaru | Menampilkan 10 order terbaru beserta status, customer ID, produk, subtotal, kode unik, dan total bayar. |
 | Produk & stok | Menampilkan seluruh produk termasuk yang stoknya habis. |
+| `/admin_products` | Menampilkan semua produk lengkap dengan ID, harga, stok, dan status. |
+| `/admin_delete_product PRODUCT_ID` | Menghapus produk dari MongoDB setelah konfirmasi inline. |
 | `/admin_add_product` | Membuat produk baru melalui percakapan interaktif. |
 | `/admin_set_stock PRODUCT_ID JUMLAH` | Mengubah stok produk tertentu. |
 | Notifikasi order baru | Owner menerima detail order baru secara private. |
@@ -47,13 +49,19 @@ Fitur berikut hanya dapat diakses oleh Telegram user ID yang sama dengan `ADMIN_
 /admin
 /admin_add_product
 /admin_set_stock PRODUCT_ID JUMLAH
+/admin_products
+/admin_delete_product PRODUCT_ID
 ```
 
 Contoh:
 
 ```text
 /admin_set_stock 3 25
+/admin_products
+/admin_delete_product 3
 ```
+
+`/admin_delete_product` tidak langsung menghapus. Bot akan menampilkan tombol konfirmasi **🗑 Ya, Hapus** atau **Batal**. Bot menolak penghapusan jika produk masih memiliki order `PENDING`. Setelah tidak ada order pending, produk dapat dihapus; riwayat order lama tetap tersimpan karena order menyimpan snapshot nama produk, harga, quantity, dan nominal transaksi.
 
 Saat `/admin_add_product`, bot meminta:
 
@@ -211,8 +219,9 @@ DANA_BUSINESS_QRIS_IMAGE=./data/dana_business_qris.png
 UNIQUE_CODE_MIN=100
 UNIQUE_CODE_MAX=400
 
-# Database
-DB_PATH=./data/orders.db
+# MongoDB
+MONGODB_URI=mongodb://mongodb:27017
+MONGODB_DATABASE=teleorderbot
 
 # Health endpoint lokal
 HOST=0.0.0.0
@@ -229,10 +238,52 @@ Jangan commit file berikut ke public repository:
 ```text
 config.env
 .env
-data/orders.db
 data/dana_business_qris.png
 logs/
 ```
+
+---
+
+# MongoDB dan persistence data
+
+Semua data operasional bot sekarang disimpan di **MongoDB**: produk, stok, user, dan order. Docker Compose menjalankan service `mongodb` menggunakan image `mongo:8.0` dan named volume:
+
+```text
+teleorderbot_mongodb_data
+```
+
+Named volume ini membuat data tetap ada saat:
+
+- container bot restart;
+- container MongoDB restart;
+- `docker compose up -d --build`;
+- source code di-update lalu redeploy;
+- `docker compose down` biasa.
+
+> **Jangan gunakan `docker compose down -v`** kecuali memang ingin menghapus database. Opsi `-v` akan menghapus named volume MongoDB.
+
+Konfigurasi default:
+
+```env
+MONGODB_URI=mongodb://mongodb:27017
+MONGODB_DATABASE=teleorderbot
+```
+
+Saat upgrade dari versi SQLite lama, jika MongoDB masih kosong dan file `data/orders.db` masih tersedia, bot mencoba mengimpor tabel **products** lama satu kali ke MongoDB dengan ID produk yang sama. Setelah berhasil, produk berikutnya akan memakai ID lanjutan.
+
+### Backup MongoDB
+
+Buat backup:
+
+```bash
+mkdir -p backups
+sudo docker exec teleorderbot-mongodb \
+  mongodump --db teleorderbot --archive=/tmp/teleorderbot.archive --gzip
+sudo docker cp teleorderbot-mongodb:/tmp/teleorderbot.archive \
+  backups/teleorderbot-$(date +%Y%m%d-%H%M%S).archive
+```
+
+Untuk keamanan tambahan di luar VPS, copy file backup tersebut ke storage lain secara berkala.
 
 ---
 
@@ -240,16 +291,18 @@ logs/
 
 Versi ini menggunakan **Telegram long polling**. Port `8080` hanya untuk local health check dan **bukan** webhook pembayaran/QRIS.
 
-Service Docker Compose sekarang bernama:
+Docker Compose menjalankan dua service:
 
 ```text
-teleorderbot
+teleorderbot  -> aplikasi Telegram bot
+mongodb       -> database MongoDB
 ```
 
-Container:
+Container utamanya:
 
 ```text
 teleorderbot
+teleorderbot-mongodb
 ```
 
 ### Build & start
@@ -265,6 +318,7 @@ Cek:
 ```bash
 sudo docker compose ps
 sudo docker compose logs -f teleorderbot
+sudo docker compose logs -f mongodb
 curl http://127.0.0.1:8080/health
 ```
 
@@ -272,6 +326,8 @@ Restart:
 
 ```bash
 sudo docker compose restart teleorderbot
+# restart database bila memang diperlukan:
+# sudo docker compose restart mongodb
 ```
 
 Stop/start:
@@ -285,7 +341,6 @@ Update source dari GitHub:
 
 ```bash
 cd /opt/teleorderbot
-cp data/orders.db "data/orders-backup-$(date +%Y%m%d-%H%M%S).db"
 git pull --ff-only
 sudo docker compose up -d --build
 ```
@@ -356,7 +411,7 @@ teleorderbot/
 │   └── orders.py
 ├── web/
 │   └── app.py
-├── data/
+├── data/                    # QRIS + legacy SQLite import source
 └── tests/
 ```
 
@@ -372,7 +427,9 @@ teleorderbot/
 - Bot memiliki izin post message/media di channel.
 - Membership check berhasil untuk akun member dan menolak akun non-member.
 - QRIS statis sudah ada di `data/dana_business_qris.png`.
-- `config.env`, database, log, dan QRIS tidak masuk GitHub.
+- `config.env`, log, QRIS, dan file backup database tidak masuk GitHub.
+- Service MongoDB sehat dan named volume `teleorderbot_mongodb_data` tersedia.
+- Jangan memakai `docker compose down -v` untuk update biasa.
 - `data/` dan `logs/` writable oleh UID `10001` pada Docker.
 - Owner sudah menguji flow order dari awal sampai auto delivery.
 

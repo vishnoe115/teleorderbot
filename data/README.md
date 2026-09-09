@@ -1,10 +1,8 @@
-# Runtime data
+# Runtime data directory
 
-Folder ini dipersist melalui Docker volume/bind mount.
+Folder ini digunakan untuk file QRIS statis dan kompatibilitas migrasi dari versi lama.
 
-- `orders.db` dibuat otomatis.
-- `orders.db-wal` dan `orders.db-shm` adalah file SQLite WAL.
-- Letakkan QRIS manual Anda sebagai `dana_qris.png`.
-- Edit `seed_products.json` sebelum database pertama kali dibuat jika ingin seed awal berbeda.
+- `dana_business_qris.png` — QRIS DANA Bisnis milik owner. Jangan commit ke repository public.
+- `orders.db` — hanya diperlukan sebagai sumber migrasi produk dari versi SQLite lama. Database utama sekarang MongoDB.
 
-File database dan QRIS pribadi tidak boleh di-commit.
+Data MongoDB tidak disimpan di folder ini. Docker Compose menyimpannya pada named volume `teleorderbot_mongodb_data`.

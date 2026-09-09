@@ -50,3 +50,20 @@ docker compose logs -f autoordertele
 ## Kode unik tracking
 
 Kode unik sekarang digenerate random 100-400 untuk setiap order. Nilainya disimpan hanya pada record order agar pembayaran dapat direkonsiliasi, dan bot menghindari total pembayaran identik di antara order PENDING.
+
+## MongoDB migration
+
+Versi ini menggunakan MongoDB sebagai database utama untuk produk, stok, user, dan order.
+
+Default Docker Compose:
+
+```env
+MONGODB_URI=mongodb://mongodb:27017
+MONGODB_DATABASE=teleorderbot
+```
+
+MongoDB memakai named volume `teleorderbot_mongodb_data`, sehingga data tetap ada saat container restart, image rebuild, Git pull, dan redeployment normal.
+
+Jika collection `products` MongoDB masih kosong dan file legacy `data/orders.db` tersedia, bot mencoba mengimpor produk lama dari SQLite satu kali dengan ID yang sama.
+
+Jangan menjalankan `docker compose down -v` untuk update normal karena opsi `-v` menghapus volume database.

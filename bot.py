@@ -100,6 +100,8 @@ def build_telegram_app() -> Application:
     app.add_handler(CommandHandler("start", user_handlers.start))
     app.add_handler(CommandHandler("admin", admin_handlers.admin))
     app.add_handler(CommandHandler("admin_set_stock", admin_handlers.set_stock_command))
+    app.add_handler(CommandHandler("admin_products", admin_handlers.all_products_command))
+    app.add_handler(CommandHandler("admin_delete_product", admin_handlers.delete_product_command))
     app.add_handler(add_product)
     app.add_handler(purchase)
 
@@ -110,6 +112,9 @@ def build_telegram_app() -> Application:
     app.add_handler(CallbackQueryHandler(admin_handlers.cancel, pattern=r"^a:cancel:"))
     app.add_handler(CallbackQueryHandler(admin_handlers.orders, pattern=r"^a:orders$"))
     app.add_handler(CallbackQueryHandler(admin_handlers.products, pattern=r"^a:products$"))
+    app.add_handler(CallbackQueryHandler(admin_handlers.products, pattern=r"^a:all_products$"))
+    app.add_handler(CallbackQueryHandler(admin_handlers.delete_product_confirm, pattern=r"^a:delete_product:\d+$"))
+    app.add_handler(CallbackQueryHandler(admin_handlers.delete_product_cancel, pattern=r"^a:delete_product_cancel$"))
     app.add_handler(MessageHandler(filters.PHOTO, user_handlers.payment_proof))
 
     app.add_error_handler(error_handler)
